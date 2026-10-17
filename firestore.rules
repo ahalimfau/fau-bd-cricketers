@@ -1,0 +1,142 @@
+rules_version = '2';
+
+// FAU BD Cricketers: Firestore security rules.
+//
+// These rules run on Google's servers and are the real protection. The app's
+// own checks only make the UI friendly. Anyone can read the public app's code
+// and the Firebase config, so nothing below trusts the client.
+//
+// Who can do what:
+//   - Anyone (no login): read players, settings and matches (live viewing).
+//   - Shared scorer login: create matches and update matches that are still live.
+//   - Admin (one person): everything, including players, photos, settings,
+//     reopening finished matches and deleting matches.
+//   - Any other account (should not exist; sign-up is disabled): nothing extra.
+//
+// Before publishing, replace the two UIDs below with the real ones from
+// Firebase console > Authentication > Users. They must match src/config/roles.ts
+// (a unit test checks this).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Roles ----------
+    function isAdmin()  { return request.auth != null && request.auth.uid == '3hgZ94yICEfIItvxxaQPIDNFsdQ2'; }
+    function isScorer() { return request.auth != null && request.auth.uid == 'LoF4RVCdOYYsIenJuQWisowtZbJ2'; }
+
+    // ---------- Field checks ----------
+    function isText(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+    function isDocId(v) { return v is string && v.matches('^[A-Za-z0-9_-]{1,64}$'); }
+    function isIntIn(v, min, max) { return v is int && v >= min && v <= max; }
+    function isNumIn(v, min, max) { return (v is int || v is float) && v >= min && v <= max; }
+
+    // Only re-encoded WebP/JPEG photos as base64 data URLs, max ~100 KB.
+    // No SVG (can carry scripts), no external URLs.
+    function isPhoto(v) {
+      return v is string
+        && v.size() <= 100000
+        && v.matches('^data:image/(webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$');
+    }
+
+    function validPlayer(d) {
+      return d.keys().hasOnly(['name', 'photo', 'active', 'updatedAt'])
+        && d.keys().hasAll(['name', 'active', 'updatedAt'])
+        && isText(d.name, 1, 40)
+        && d.active is bool
+        && (!('photo' in d) || d.photo == null || isPhoto(d.photo))
+        && d.updatedAt == request.time;
+    }
+
+    function validConfig(d) {
+      return d.keys().hasOnly(['titles', 'shahinWeights', 'kiptaMinBalls', 'kiptaFallbackBalls', 'shahinMinBalls', 'defaultOvers', 'updatedAt'])
+        && d.keys().hasAll(['updatedAt'])
+        && (!('titles' in d) || (d.titles is map && d.titles.size() <= 20))
+        && (!('shahinWeights' in d) || (d.shahinWeights is map && d.shahinWeights.size() <= 5))
+        && (!('kiptaMinBalls' in d) || isIntIn(d.kiptaMinBalls, 0, 300))
+        && (!('kiptaFallbackBalls' in d) || isIntIn(d.kiptaFallbackBalls, 0, 300))
+        && (!('shahinMinBalls' in d) || isIntIn(d.shahinMinBalls, 0, 300))
+        && (!('defaultOvers' in d) || isIntIn(d.defaultOvers, 1, 50))
+        && d.updatedAt == request.time;
+    }
+
+    function validTeam(t) {
+      return t is map
+        && t.keys().hasOnly(['name', 'playerIds'])
+        && isText(t.name, 1, 30)
+        && t.playerIds is list
+        && t.playerIds.size() >= 2
+        && t.playerIds.size() <= 30;
+    }
+
+    function validToss(t) {
+      return t is map
+        && t.keys().hasOnly(['winner', 'choice'])
+        && t.winner in ['A', 'B']
+        && t.choice in ['bat', 'bowl'];
+    }
+
+    function validMeta(m) {
+      return m is map
+        && m.keys().hasOnly(['oversPerInnings', 'teamA', 'teamB', 'battingFirst', 'toss'])
+        && isIntIn(m.oversPerInnings, 1, 50)
+        && m.battingFirst in ['A', 'B']
+        && validTeam(m.teamA)
+        && validTeam(m.teamB)
+        && (!('toss' in m) || validToss(m.toss));
+    }
+
+    // The ball-by-ball list is checked for size here and validated item by
+    // item in the app (src/data/validate.ts) before anything is shown.
+    function validMatch(d) {
+      return d.keys().hasOnly(['meta', 'status', 'events', 'version', 'createdBy', 'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['meta', 'status', 'events', 'version', 'createdBy', 'createdAt', 'updatedAt'])
+        && validMeta(d.meta)
+        && d.status in ['live', 'done']
+        && d.events is list
+        && d.events.size() <= 2000
+        && d.version is int
+        && d.updatedAt == request.time;
+    }
+
+    // ---------- Collections ----------
+
+    match /players/{playerId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isDocId(playerId) && validPlayer(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /config/{docId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && docId == 'app' && validConfig(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /matches/{matchId} {
+      allow read: if true;
+
+      allow create: if (isAdmin() || isScorer())
+        && isDocId(matchId)
+        && validMatch(request.resource.data)
+        && request.resource.data.status == 'live'
+        && request.resource.data.version == 1
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+
+      // Every write bumps `version` by exactly one, so two phones can't
+      // silently overwrite each other. Creator and creation time never change.
+      // The scorer can only touch matches that are still live; a finished
+      // match is locked for everyone except the admin.
+      allow update: if (isAdmin() || (isScorer() && resource.data.status == 'live'))
+        && validMatch(request.resource.data)
+        && request.resource.data.version == resource.data.version + 1
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if isAdmin();
+    }
+
+    // Anything not matched above is denied (Firestore's default), including
+    // any collection someone tries to invent.
+  }
+}

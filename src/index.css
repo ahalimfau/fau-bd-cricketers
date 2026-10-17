@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/figtree';
+
+/* Design tokens from the approved Claude Design canvas (white, green, red). */
+@theme {
+  --color-ink: #10231a;
+  --color-muted: #52665a;
+  --color-surface: #f2f7f3;
+  --color-line: #d3e2d7;
+  --color-green: #0e7a3e;
+  --color-green-dark: #0a5c2e;
+  --color-green-tint: #ddf1e3;
+  --color-red: #d62839;
+  --color-red-dark: #a51d2b;
+  --color-red-tint: #fce3e6;
+  --font-display: 'Bricolage Grotesque Variable', sans-serif;
+  --font-sans: 'Figtree Variable', sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: #ffffff;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* iOS zooms into inputs below 16px; never let that happen. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
