@@ -115,12 +115,19 @@ describe('sanitizeConfig', () => {
   it('falls back to defaults and clamps values', () => {
     const c = sanitizeConfig({
       titles: { miss: { label: '  Miss‮ ', enabled: false }, bogus: { label: 'x' } },
-      shahinWeights: { drop: 999, boundaryMisfield: 3 },
+      shahinWeights: { drop: 1001, boundaryMisfield: 3, wicket: 2.5, batPar: -1 },
       kiptaMinBalls: -5,
     });
     expect(c.titles.miss).toEqual({ label: 'Miss', enabled: false });
-    expect(c.shahinWeights).toEqual({ drop: 6, boundaryMisfield: 3, otherOops: 2 });
+    // Any value from 0 to 1000 (decimals too) is kept; anything else falls back.
+    expect(c.shahinWeights).toEqual({ drop: 6, boundaryMisfield: 3, otherOops: 2, wicket: 2.5, batPar: 10 });
     expect(c.kiptaMinBalls).toBe(12);
     expect('bogus' in c.titles).toBe(false);
+  });
+
+  it('settings saved before the new weights existed still load', () => {
+    const c = sanitizeConfig({ shahinWeights: { drop: 6, boundaryMisfield: 4, otherOops: 2 }, titles: { miss: { label: 'Ashraful', enabled: true } } });
+    expect(c.shahinWeights).toEqual({ drop: 6, boundaryMisfield: 4, otherOops: 2, wicket: 8, batPar: 10 });
+    expect(c.titles.miss.label).toBe('Ashraful');
   });
 });

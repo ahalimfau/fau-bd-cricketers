@@ -4,6 +4,8 @@ import { replay, teamOf } from '../engine/replay';
 import { useApp, useMatch } from '../data/hooks';
 import { Header, Loading, Page, btn, pad } from '../ui/kit';
 import { ShareButton } from '../ui/ShareButton';
+import { AwardList } from '../ui/AwardCards';
+import { computeAwards } from '../engine/awards';
 import { dismissalText, matchTitle, rate, scoreText, sr, teamName } from '../ui/cricket';
 
 const TH = 'text-xs font-bold text-muted';
@@ -14,6 +16,8 @@ export function Scorecard() {
   const live = useMatch(id);
   const match = live.match;
   const state = useMemo(() => (match ? replay(match.meta, match.clean.events) : null), [match]);
+  // Uses the admin's current title names and formula weights from Settings.
+  const awards = useMemo(() => (state ? computeAwards(state, app.cfg) : []), [state, app.cfg]);
   const [tab, setTab] = useState<0 | 1 | null>(null);
   const card = useRef<HTMLDivElement>(null);
 
@@ -195,6 +199,11 @@ export function Scorecard() {
               ))}
             </>
           )}
+        </section>
+
+        <section className={`flex flex-col gap-2 ${pad}`}>
+          <h2 className="font-display text-lg font-extrabold">{state.complete ? 'Titles' : 'Titles so far'}</h2>
+          <AwardList awards={awards} />
         </section>
       </div>
       <div className={`${pad} pb-[max(20px,env(safe-area-inset-bottom))]`}>

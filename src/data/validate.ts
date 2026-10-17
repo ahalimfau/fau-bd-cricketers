@@ -25,6 +25,8 @@ import { DEFAULT_AWARDS_CONFIG, TITLE_ORDER, type AwardsConfig } from '../engine
 import { isSafePhotoDataUrl } from '../security/photo';
 
 export const MAX_EVENTS = 2000;
+/** Highest value accepted for any Shahin weight. */
+export const MAX_WEIGHT = 1000;
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const WICKETS: ReadonlySet<string> = new Set<WicketHow>([
   'bowled', 'caught', 'lbw', 'stumped', 'hitwicket', 'runout', 'obstructing', 'hitballtwice',
@@ -255,9 +257,9 @@ export function sanitizeConfig(raw: unknown): AwardsConfig {
     }
   }
   if (isObj(raw.shahinWeights)) {
-    for (const k of ['drop', 'boundaryMisfield', 'otherOops'] as const) {
+    for (const k of ['drop', 'boundaryMisfield', 'otherOops', 'wicket', 'batPar'] as const) {
       const v = raw.shahinWeights[k];
-      if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 50) cfg.shahinWeights[k] = v;
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= MAX_WEIGHT) cfg.shahinWeights[k] = v;
     }
   }
   for (const k of ['kiptaMinBalls', 'kiptaFallbackBalls', 'shahinMinBalls'] as const) {

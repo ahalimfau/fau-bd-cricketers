@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { replay } from '../engine/replay';
-import { HERO_TITLES, computeAwards } from '../engine/awards';
+import { HERO_TITLES, computeAwards, titleName } from '../engine/awards';
 import { canManage, canScore } from '../config/roles';
 import { useApp, useMatches } from '../data/hooks';
 import type { MatchDoc } from '../data/validate';
@@ -145,9 +145,10 @@ export function Home() {
                 return (
                   <div key={a.key} className={`flex w-[136px] flex-none snap-start flex-col gap-2 rounded-2xl p-3 ${hero ? 'bg-green-tint' : 'bg-red-tint'}`}>
                     <Avatar player={p} name={app.name(a.playerIds[0])} size={44} tone={hero ? 'A' : 'B'} ring="bg-white!" />
-                    <div className={`font-display text-base leading-tight font-extrabold ${hero ? 'text-green-dark' : 'text-red-dark'}`}>
-                      {a.label} {a.playerIds.map(app.name).join(' & ')}
+                    <div className={`text-[11px] leading-tight font-extrabold tracking-wide uppercase ${hero ? 'text-green-dark' : 'text-red-dark'}`}>
+                      {titleName(a.key, a.label)}
                     </div>
+                    <div className="font-display text-base leading-tight font-extrabold">{a.playerIds.map(app.name).join(' & ')}</div>
                     <div className="text-[13px]">{a.stat}</div>
                   </div>
                 );

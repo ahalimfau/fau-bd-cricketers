@@ -16,14 +16,27 @@ export interface TitleConfig {
   enabled: boolean;
 }
 
+export interface ShahinWeights {
+  /** Points per dropped catch. */
+  drop: number;
+  /** Points per misfield that went for 4 or 6. */
+  boundaryMisfield: number;
+  /** Points per missed run-out or overthrow. */
+  otherOops: number;
+  /** Points taken OFF per wicket the player took. */
+  wicket: number;
+  /** Batting par: a player who got out scores (par − runs) points if below it. */
+  batPar: number;
+}
+
 export interface AwardsConfig {
   titles: Record<TitleKey, TitleConfig>;
-  shahinWeights: { drop: number; boundaryMisfield: number; otherOops: number };
+  shahinWeights: ShahinWeights;
   /** Kipta needs at least this many legal balls bowled... */
   kiptaMinBalls: number;
   /** ...falling back to this if nobody reached kiptaMinBalls. */
   kiptaFallbackBalls: number;
-  /** Shahin candidates must have bowled at least this many legal balls. */
+  /** No longer used (Shahin now looks at every player); kept so old settings still load. */
   shahinMinBalls: number;
 }
 
@@ -48,29 +61,39 @@ export const DEFAULT_AWARDS_CONFIG: AwardsConfig = {
     gameChanger: { label: 'Game Changer', enabled: true },
     kipta: { label: 'Kipta', enabled: true },
     shahin: { label: 'Shahin', enabled: true },
-    miss: { label: 'Miss', enabled: true },
-    wideBhai: { label: 'Wide Bhai', enabled: true },
-    noBallNawab: { label: 'No-Ball Nawab', enabled: true },
-    chalni: { label: 'Chalni', enabled: true },
-    hasherDim: { label: 'Hasher Dim', enabled: true },
+    miss: { label: 'Ashraful', enabled: true },
+    wideBhai: { label: 'Mr. Wide', enabled: true },
+    noBallNawab: { label: 'Mr. No Ball', enabled: true },
+    chalni: { label: 'Baje Fielder', enabled: true },
+    hasherDim: { label: 'Golden Duck', enabled: true },
   },
-  shahinWeights: { drop: 6, boundaryMisfield: 4, otherOops: 2 },
+  shahinWeights: { drop: 6, boundaryMisfield: 4, otherOops: 2, wicket: 8, batPar: 10 },
   kiptaMinBalls: 12,
   kiptaFallbackBalls: 6,
   shahinMinBalls: 6,
 };
 
 export const TITLE_RULES: Record<TitleKey, string> = {
-  fatakeshto: 'Most runs',
-  gameChanger: 'Most wickets',
-  kipta: 'Lowest economy',
-  shahin: 'Expensive bowler + bad fielder',
+  fatakeshto: 'Highest scorer (runs off the bat)',
+  gameChanger: 'Most wickets, then best economy',
+  kipta: 'Best economy (fewest runs per over)',
+  shahin: 'Worst all-round: low score, expensive bowling, few wickets, fielding mistakes',
   miss: 'Most dropped catches',
   wideBhai: 'Most wides',
   noBallNawab: 'Most no-balls',
-  chalni: 'Most boundaries leaked',
+  chalni: 'Most boundaries leaked + dropped catches',
   hasherDim: 'Out for 0',
 };
+
+/**
+ * How a title is shown for one match: heroes as their name ("Fatakeshto"),
+ * Hall of Shame titles as "<name> of the day" ("Ashraful of the day").
+ * Season counts use the plain name.
+ */
+export function titleName(key: TitleKey, label: string, ofTheDay = true): string {
+  if (!ofTheDay || HERO_TITLES.has(key)) return label;
+  return /of the day$/i.test(label.trim()) ? label : `${label} of the day`;
+}
 
 export interface PlayerMatchStats {
   id: PlayerId;
@@ -211,15 +234,40 @@ export function matchEconomy(stats: PlayerMatchStats[]): number {
   return balls === 0 ? 0 : (runs * 6) / balls;
 }
 
-export function shahinScore(s: PlayerMatchStats, matchEcon: number, cfg: AwardsConfig): number {
+export interface ShahinParts {
+  /** Runs conceded above what an average bowler in this match would give off the same balls. */
+  excess: number;
+  /** Points for getting out cheaply: max(0, par − runs) if out, else 0. */
+  lowScore: number;
+  fielding: number;
+  /** Points taken off for wickets (positive number). */
+  wicketCredit: number;
+  total: number;
+}
+
+/**
+ * Shahin of the day: the worst all-round day.
+ *   + runs conceded above the match economy
+ *   + (batting par − runs) for a player who got out below par
+ *   + points per fielding mistake (drops, boundary misfields, other oops)
+ *   − points per wicket taken
+ * Never below 0.
+ */
+export function shahinParts(s: PlayerMatchStats, matchEcon: number, cfg: AwardsConfig): ShahinParts {
   const w = cfg.shahinWeights;
   const excess = Math.max(0, s.bowlRuns - (matchEcon * s.bowlBalls) / 6);
-  return (
-    excess +
-    w.drop * s.drops +
-    w.boundaryMisfield * (s.misfield4 + s.misfield6) +
-    w.otherOops * (s.missedRunOuts + s.overthrows)
-  );
+  const lowScore = s.out ? Math.max(0, w.batPar - s.batRuns) : 0;
+  const fielding = w.drop * s.drops + w.boundaryMisfield * (s.misfield4 + s.misfield6) + w.otherOops * (s.missedRunOuts + s.overthrows);
+  const wicketCredit = w.wicket * s.wickets;
+  return { excess, lowScore, fielding, wicketCredit, total: Math.max(0, excess + lowScore + fielding - wicketCredit) };
+}
+
+export function shahinScore(s: PlayerMatchStats, matchEcon: number, cfg: AwardsConfig): number {
+  return shahinParts(s, matchEcon, cfg).total;
+}
+
+function num(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
 export function computeAwards(state: MatchState, cfg: AwardsConfig = DEFAULT_AWARDS_CONFIG): Award[] {
@@ -245,15 +293,15 @@ export function computeAwards(state: MatchState, cfg: AwardsConfig = DEFAULT_AWA
     }
   }
 
-  // Game Changer: most wickets; tie → fewer runs conceded, then fewer balls.
+  // Game Changer: most wickets; tie → best economy, then fewer runs conceded.
   {
     const w = pickTop(
       all.filter((s) => s.wickets > 0),
       (s) => s.wickets,
+      (s) => (s.bowlBalls ? -(s.bowlRuns / s.bowlBalls) : 0),
       (s) => -s.bowlRuns,
-      (s) => -s.bowlBalls,
     );
-    if (w.length) add('gameChanger', w, figures(w[0]));
+    if (w.length) add('gameChanger', w, `${figures(w[0])} · economy ${fmtEcon(w[0].bowlRuns, w[0].bowlBalls)}`);
   }
 
   // Kipta: lowest economy with a minimum number of balls; tie → more balls bowled.
@@ -270,32 +318,39 @@ export function computeAwards(state: MatchState, cfg: AwardsConfig = DEFAULT_AWA
     }
   }
 
-  // Shahin: highest disaster score among bowlers with at least one over. Always awarded.
+  // Shahin: the worst all-round day across both teams (see shahinParts).
   {
     const econ = matchEconomy(all);
-    const pool = all.filter((s) => s.bowlBalls >= cfg.shahinMinBalls);
-    const w = pickTop(pool, (s) => shahinScore(s, econ, cfg), (s) => s.drops, (s) => s.bowlRuns);
+    const pool = all.filter((s) => shahinScore(s, econ, cfg) > 0);
+    const w = pickTop(
+      pool,
+      (s) => shahinScore(s, econ, cfg),
+      (s) => s.drops,
+      (s) => s.bowlRuns,
+      (s) => -s.batRuns,
+    );
     if (w.length) {
       const s = w[0];
-      const score = shahinScore(s, econ, cfg);
-      const excess = Math.max(0, s.bowlRuns - (econ * s.bowlBalls) / 6);
+      const p = shahinParts(s, econ, cfg);
+      const wt = cfg.shahinWeights;
       const misfields = s.misfield4 + s.misfield6;
       const other = s.missedRunOuts + s.overthrows;
-      const fieldBits = [
+      const bits = [
+        s.batted && (s.out ? `out for ${s.batRuns}` : `${s.batRuns} not out`),
+        s.bowlBalls > 0 && figures(s),
         s.drops && plural(s.drops, 'drop'),
-        misfields && plural(misfields, 'boundary misfield'),
+        misfields && plural(misfields, 'boundary leaked', 'boundaries leaked'),
         other && plural(other, 'other oops', 'other oops'),
       ].filter(Boolean);
-      const parts = [`${excess.toFixed(1)} runs above match economy (${econ.toFixed(2)})`];
-      if (s.drops) parts.push(`${cfg.shahinWeights.drop} × ${plural(s.drops, 'drop')}`);
-      if (misfields) parts.push(`${cfg.shahinWeights.boundaryMisfield} × ${plural(misfields, 'boundary misfield')}`);
-      if (other) parts.push(`${cfg.shahinWeights.otherOops} × ${plural(other, 'other oops', 'other oops')}`);
-      add(
-        'shahin',
-        w,
-        `${figures(s)}${fieldBits.length ? ' and ' + fieldBits.join(', ') : ''}`,
-        `Disaster score ${score.toFixed(1)} = ${parts.join(' + ')}`,
-      );
+      const parts: string[] = [];
+      if (p.excess > 0) parts.push(`${p.excess.toFixed(1)} runs above match economy (${econ.toFixed(2)})`);
+      if (p.lowScore > 0) parts.push(`${num(p.lowScore)} for out for ${s.batRuns} (par ${num(wt.batPar)})`);
+      if (s.drops) parts.push(`${num(wt.drop)} × ${plural(s.drops, 'drop')}`);
+      if (misfields) parts.push(`${num(wt.boundaryMisfield)} × ${plural(misfields, 'boundary leaked', 'boundaries leaked')}`);
+      if (other) parts.push(`${num(wt.otherOops)} × ${plural(other, 'other oops', 'other oops')}`);
+      let detail = `Disaster score ${p.total.toFixed(1)} = ${parts.join(' + ') || '0'}`;
+      if (p.wicketCredit > 0) detail += ` − ${num(wt.wicket)} × ${plural(s.wickets, 'wicket')}`;
+      add('shahin', w, bits.join(' · '), detail);
     }
   }
 
@@ -317,13 +372,19 @@ export function computeAwards(state: MatchState, cfg: AwardsConfig = DEFAULT_AWA
     const w = pickTop(all.filter((s) => s.noBalls > 0), (s) => s.noBalls);
     if (w.length) add('noBallNawab', w, plural(w[0].noBalls, 'no-ball'));
   }
+  // Baje Fielder: boundaries leaked + dropped catches; tie → more boundaries leaked.
   {
     const w = pickTop(
-      all.filter((s) => s.misfield4 + s.misfield6 > 0),
+      all.filter((s) => s.misfield4 + s.misfield6 + s.drops > 0),
+      (s) => s.misfield4 + s.misfield6 + s.drops,
       (s) => s.misfield4 + s.misfield6,
       (s) => s.misfield6,
     );
-    if (w.length) add('chalni', w, plural(w[0].misfield4 + w[0].misfield6, 'misfield', 'misfields') + ' went to the boundary');
+    if (w.length) {
+      const s = w[0];
+      const m = s.misfield4 + s.misfield6;
+      add('chalni', w, [m && plural(m, 'boundary leaked', 'boundaries leaked'), s.drops && plural(s.drops, 'dropped catch', 'dropped catches')].filter(Boolean).join(' · '));
+    }
   }
   {
     const w = all.filter((s) => s.duck);

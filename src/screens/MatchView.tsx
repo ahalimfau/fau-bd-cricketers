@@ -11,6 +11,7 @@ import { deleteMatch, writeErrorText } from '../data/repo';
 import { useMatchWriter } from '../data/useMatchWriter';
 import { BackButton, Banner, Loading, Page, Sheet, btn, chipCls, fmtDate, pad } from '../ui/kit';
 import { ShareButton } from '../ui/ShareButton';
+import { awardLine } from '../ui/AwardCards';
 import { figures, matchTitle, rate, requiredRate, scoreText, situation, teamName } from '../ui/cricket';
 
 function isExtension(prev: MatchEvent[], next: MatchEvent[]): boolean {
@@ -161,7 +162,7 @@ export function MatchView() {
             <strong className="text-red-dark">{state.complete ? 'Hall of Shame:' : 'Shame ticker:'}</strong>{' '}
             {shame
               .slice(0, 4)
-              .map((a) => `${a.label} ${a.playerIds.map(app.name).join(' & ')} (${a.stat})`)
+              .map((a) => awardLine(a, app.name))
               .join(' · ')}
           </div>
         )}

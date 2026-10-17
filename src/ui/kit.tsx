@@ -2,7 +2,7 @@
 // touch targets are at least 44px, and colours come from the theme tokens in
 // index.css (white, green, red).
 
-import { useEffect, useId, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import type { Player } from '../data/validate';
 
@@ -205,6 +205,81 @@ export function Choice<T extends string | number>({
           {o.sub && <span className={`text-[11px] font-semibold ${o.value === value ? 'text-white/90' : 'text-muted'}`}>{o.sub}</span>}
         </button>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Number box with − and + buttons. You can also type any value: the text is
+ * kept exactly as typed while editing (so clearing it to type a new number
+ * works), and it's only checked when you leave the box.
+ */
+export function NumberField({
+  label,
+  value,
+  onChange,
+  min = 0,
+  max = 1000,
+  step = 1,
+  integer = false,
+}: {
+  label: ReactNode;
+  value: number;
+  onChange: (n: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  integer?: boolean;
+}) {
+  const [text, setText] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setText(String(value));
+  }, [value, focused]);
+  const clamp = (n: number) => Math.min(max, Math.max(min, integer ? Math.round(n) : Math.round(n * 100) / 100));
+  const parse = (s: string): number | null => {
+    const n = Number(s.replace(',', '.').trim());
+    return s.trim() !== '' && Number.isFinite(n) ? n : null;
+  };
+  const bump = (d: number) => {
+    const n = clamp((parse(text) ?? value) + d);
+    setText(String(n));
+    onChange(n);
+  };
+  const id = useId();
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-xs font-semibold text-muted">
+        {label}
+      </label>
+      <div className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-1.5">
+        <button type="button" aria-label="Decrease" onClick={() => bump(-step)} className="h-12 rounded-xl bg-surface text-2xl font-bold active:bg-line">
+          −
+        </button>
+        <input
+          id={id}
+          type="text"
+          inputMode={integer ? 'numeric' : 'decimal'}
+          value={text}
+          onFocus={() => setFocused(true)}
+          onChange={(e) => {
+            setText(e.target.value);
+            const n = parse(e.target.value);
+            if (n !== null && n >= min && n <= max) onChange(integer ? Math.round(n) : n);
+          }}
+          onBlur={() => {
+            setFocused(false);
+            const n = parse(text);
+            const v = n === null ? value : clamp(n);
+            setText(String(v));
+            onChange(v);
+          }}
+          className="h-12 w-full min-w-0 rounded-xl border-2 border-line bg-white px-1 text-center text-base font-bold focus:border-green focus:outline-none"
+        />
+        <button type="button" aria-label="Increase" onClick={() => bump(step)} className="h-12 rounded-xl bg-surface text-2xl font-bold active:bg-line">
+          +
+        </button>
+      </div>
     </div>
   );
 }

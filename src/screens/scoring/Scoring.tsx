@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { replay } from '../../engine/replay';
 import { describeEvent } from '../../engine/events';
-import { HERO_TITLES, computeAwards } from '../../engine/awards';
+import { HERO_TITLES, computeAwards, titleName } from '../../engine/awards';
 import type { BallEvent, MatchEvent, OopsType } from '../../engine/types';
 import { canManage, canScore } from '../../config/roles';
 import { useApp, useMatch } from '../../data/hooks';
@@ -530,7 +530,7 @@ export function Scoring() {
             {computeAwards(state, app.cfg).map((a) => (
               <div key={a.key} className={`rounded-xl px-3 py-2 text-sm ${HERO_TITLES.has(a.key) ? 'bg-green-tint text-green-dark' : 'bg-red-tint text-red-dark'}`}>
                 <strong>
-                  {a.label} {a.playerIds.map(app.name).join(' & ')}
+                  {titleName(a.key, a.label)}: {a.playerIds.map(app.name).join(' & ')}
                 </strong>{' '}
                 · <span className="text-ink">{a.stat}</span>
               </div>
