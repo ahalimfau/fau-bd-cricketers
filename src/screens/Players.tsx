@@ -3,14 +3,15 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { replay } from '../engine/replay';
-import { HERO_TITLES, computeAwards, fmtEcon, playerMatchStats, seasonTitleCounts, sumStats } from '../engine/awards';
+import { HERO_TITLES, titleName, type TitleKey } from '../engine/awards';
+import { battingAverage, bestText, careers, economyText, highestText, oversText, performanceLine, performances, strikeRate } from '../engine/career';
 import { canManage } from '../config/roles';
-import { useApp, useMatches } from '../data/hooks';
+import { useApp, usePlayedMatches } from '../data/hooks';
 import { deletePlayer, newId, savePlayer, writeErrorText } from '../data/repo';
 import { cleanText, type Player } from '../data/validate';
 import { ACCEPTED_INPUT, PhotoError, compressPhoto } from '../security/photo';
-import { Avatar, Banner, Header, Loading, Page, Sheet, btn, pad } from '../ui/kit';
+import { Avatar, Banner, Header, Loading, Page, Sheet, btn, fmtDate, pad } from '../ui/kit';
+import { matchTitle } from '../ui/cricket';
 
 function EditPlayer({ player, open, onClose }: { player: Player | 'new' | null; open: boolean; onClose: () => void }) {
   const isNew = player === 'new';
@@ -209,20 +210,17 @@ export function Players() {
 export function PlayerProfile() {
   const { id } = useParams();
   const app = useApp();
-  const { matches, ready } = useMatches(200);
+  const { list, ready } = usePlayedMatches();
   const [editing, setEditing] = useState(false);
   const p = id ? app.byId.get(id) : undefined;
-  const done = useMemo(() => matches.filter((m) => m.status === 'done'), [matches]);
   const data = useMemo(() => {
     if (!id) return null;
-    const states = done.map((m) => replay(m.meta, m.clean.events));
-    const per = states.map(playerMatchStats);
-    const totals = sumStats(per)[id];
-    let best = 0;
-    for (const s of per) if (s[id]) best = Math.max(best, s[id].batRuns);
-    const titles = seasonTitleCounts(states.map((s) => computeAwards(s, app.cfg))).filter((t) => t.playerId === id);
-    return { totals, best, titles };
-  }, [done, id, app.cfg]);
+    const career = careers(list).get(id) ?? null;
+    const perf = performances(list, id, app.cfg);
+    const counts = new Map<TitleKey, number>();
+    for (const x of perf) for (const t of x.titles) counts.set(t.key, (counts.get(t.key) ?? 0) + 1);
+    return { career, perf, titles: [...counts.entries()].sort((a, b) => b[1] - a[1]) };
+  }, [list, id, app.cfg]);
 
   if (!app.playersReady) return <Page><Loading /></Page>;
   if (!p || !id) {
@@ -233,13 +231,14 @@ export function PlayerProfile() {
       </Page>
     );
   }
-  const t = data?.totals;
+  const c = data?.career;
   const stat = (label: string, v: string | number, shame?: boolean) => (
-    <div className={`flex flex-col rounded-2xl px-3 py-2.5 ${shame ? 'bg-red-tint' : 'bg-surface'}`}>
-      <span className={`font-display text-2xl font-extrabold ${shame ? 'text-red-dark' : ''}`}>{v}</span>
-      <span className="text-xs text-muted">{label}</span>
+    <div className={`flex min-w-0 flex-col rounded-2xl px-3 py-2.5 ${shame ? 'bg-red-tint' : 'bg-surface'}`}>
+      <span className={`truncate font-display text-2xl font-extrabold ${shame ? 'text-red-dark' : ''}`}>{v}</span>
+      <span className="truncate text-xs text-muted">{label}</span>
     </div>
   );
+  const H2 = 'pt-1 text-xs font-extrabold tracking-widest text-muted';
   return (
     <Page>
       <Header
@@ -253,57 +252,102 @@ export function PlayerProfile() {
           )
         }
       />
-      <div className={`flex flex-col gap-4 ${pad} pt-2 pb-8`}>
+      <div className={`flex flex-col gap-3 ${pad} pt-2 pb-8`}>
         <div className="flex items-center gap-4">
           <Avatar player={p} size={88} />
-          <div className="flex flex-col">
-            <span className="font-display text-2xl font-extrabold">{p.name}</span>
-            <span className="text-sm text-muted">{t ? `${t.matches} finished ${t.matches === 1 ? 'match' : 'matches'}` : ready ? 'No finished matches yet' : 'Loading…'}</span>
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate font-display text-2xl font-extrabold">{p.name}</span>
+            <span className="text-sm text-muted">
+              {!ready ? 'Loading…' : c ? `${c.matches} finished ${c.matches === 1 ? 'match' : 'matches'}` : 'No finished matches yet'}
+            </span>
           </div>
         </div>
         {data && data.titles.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {data.titles.map((x) => (
-              <span key={x.key} className={`rounded-full px-3 py-1.5 text-sm font-extrabold ${HERO_TITLES.has(x.key) ? 'bg-green-tint text-green-dark' : 'bg-red-tint text-red-dark'}`}>
-                {app.cfg.titles[x.key].label} ×{x.count}
+            {data.titles.map(([key, n]) => (
+              <span key={key} className={`rounded-full px-3 py-1.5 text-sm font-extrabold ${HERO_TITLES.has(key) ? 'bg-green-tint text-green-dark' : 'bg-red-tint text-red-dark'}`}>
+                {app.cfg.titles[key].label} ×{n}
               </span>
             ))}
           </div>
         )}
-        {t && (
+        {c && (
           <>
-            <h2 className="text-xs font-extrabold tracking-widest text-muted">BATTING</h2>
+            <h2 className={H2}>BATTING</h2>
             <div className="grid grid-cols-3 gap-2">
-              {stat('Runs', t.batRuns)}
-              {stat('Best', data?.best ?? 0)}
-              {stat('Strike rate', t.batBalls ? ((t.batRuns * 100) / t.batBalls).toFixed(0) : '–')}
-              {stat('Fours', t.fours)}
-              {stat('Sixes', t.sixes)}
-              {stat('Ducks', t.ducks, t.ducks > 0)}
+              {stat('Runs', c.runs)}
+              {stat('Innings', c.innings)}
+              {stat('Highest', highestText(c))}
+              {stat('Average', battingAverage(c))}
+              {stat('Strike rate', strikeRate(c))}
+              {stat('Not outs', c.notOuts)}
+              {stat('Fours', c.fours)}
+              {stat('Sixes', c.sixes)}
+              {stat('Ducks', c.ducks, c.ducks > 0)}
             </div>
-            <h2 className="text-xs font-extrabold tracking-widest text-muted">BOWLING</h2>
+            <h2 className={H2}>BOWLING</h2>
             <div className="grid grid-cols-3 gap-2">
-              {stat('Wickets', t.wickets)}
-              {stat('Overs', `${Math.floor(t.bowlBalls / 6)}.${t.bowlBalls % 6}`)}
-              {stat('Economy', fmtEcon(t.bowlRuns, t.bowlBalls))}
-              {stat('Wides', t.wides, t.wides > 0)}
-              {stat('No-balls', t.noBalls, t.noBalls > 0)}
-              {stat('Maidens', t.maidens)}
+              {stat('Wickets', c.wickets)}
+              {stat('Overs', oversText(c.bowlBalls))}
+              {stat('Best', bestText(c))}
+              {stat('Economy', economyText(c))}
+              {stat('Runs given', c.bowlRuns)}
+              {stat('Maidens', c.maidens)}
+              {stat('Wides', c.wides, c.wides > 0)}
+              {stat('No-balls', c.noBalls, c.noBalls > 0)}
             </div>
-            <h2 className="text-xs font-extrabold tracking-widest text-muted">FIELDING</h2>
+            <h2 className={H2}>FIELDING</h2>
             <div className="grid grid-cols-3 gap-2">
-              {stat('Catches', t.catches)}
-              {stat('Run-outs', t.runOuts + t.stumpings)}
-              {stat('Drops', t.drops, t.drops > 0)}
-              {stat('Misfields', t.misfield4 + t.misfield6, t.misfield4 + t.misfield6 > 0)}
-              {stat('Missed run-outs', t.missedRunOuts, t.missedRunOuts > 0)}
-              {stat('Overthrows', t.overthrows, t.overthrows > 0)}
+              {stat('Catches', c.catches)}
+              {stat('Run-outs', c.runOuts + c.stumpings)}
+              {stat('Drops', c.drops, c.drops > 0)}
+              {stat('Leaked 4s/6s', c.boundariesLeaked, c.boundariesLeaked > 0)}
+              {stat('Missed run-outs', c.missedRunOuts, c.missedRunOuts > 0)}
+              {stat('Overthrows', c.overthrows, c.overthrows > 0)}
             </div>
           </>
         )}
-        <Link to="/shame" className={btn.outline}>
-          Season Hall of Shame
-        </Link>
+        {data && data.perf.length > 0 && (
+          <>
+            <h2 className={H2}>MATCH BY MATCH</h2>
+            <div className="flex flex-col gap-2">
+              {data.perf.map(({ match, team, stats, titles }) => {
+                const result = match.state.result?.text ?? '';
+                const won = match.state.result?.winner === team;
+                return (
+                  <Link key={match.id} to={`/match/${match.id}/scorecard`} className="flex flex-col gap-1 rounded-2xl bg-surface px-3.5 py-2.5">
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-sm font-bold">
+                        {matchTitle(match.meta)}
+                        {match.meta[team === 'A' ? 'teamA' : 'teamB'].playerIds[0] === id ? ' · captain' : ''}
+                      </span>
+                      <span className="flex-none text-xs text-muted">{fmtDate(match.createdAt)}</span>
+                    </span>
+                    <span className="font-display text-lg font-extrabold">{performanceLine(stats)}</span>
+                    <span className={`text-xs font-semibold ${won ? 'text-green-dark' : 'text-muted'}`}>{result}</span>
+                    {titles.length > 0 && (
+                      <span className="flex flex-wrap gap-1.5 pt-0.5">
+                        {titles.map((t) => (
+                          <span key={t.key} className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${HERO_TITLES.has(t.key) ? 'bg-green-tint text-green-dark' : 'bg-red-tint text-red-dark'}`}>
+                            {titleName(t.key, t.label)}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </>
+        )}
+        <div className="grid grid-cols-2 gap-2.5 pt-2">
+          <Link to="/stats" className={btn.outline}>
+            Season stats
+          </Link>
+          <Link to="/shame" className={btn.outline}>
+            Hall of Shame
+          </Link>
+        </div>
       </div>
       <EditPlayer player={editing ? p : null} open={editing} onClose={() => setEditing(false)} />
     </Page>

@@ -312,10 +312,11 @@ const svg = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke:
 
 export function BottomNav() {
   return (
-    <nav className="sticky bottom-0 z-40 grid grid-cols-4 border-t border-line bg-white pt-1.5 pb-[max(10px,env(safe-area-inset-bottom))]">
+    <nav className="sticky bottom-0 z-40 grid grid-cols-5 border-t border-line bg-white pt-1.5 pb-[max(10px,env(safe-area-inset-bottom))]">
       <NavItem to="/" end label="Home" icon={<svg {...svg}><path d="M3 11l9-8 9 8v10H3z" /></svg>} />
       <NavItem to="/matches" label="Matches" icon={<svg {...svg}><path d="M4 6h16M4 12h16M4 18h10" /></svg>} />
       <NavItem to="/players" label="Players" icon={<svg {...svg}><circle cx="9" cy="8" r="4" /><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 4a4 4 0 0 1 0 8M22 21c0-3-2-5-4-5.5" /></svg>} />
+      <NavItem to="/stats" label="Stats" icon={<svg {...svg}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>} />
       <NavItem to="/shame" label="Shame" icon={<svg {...svg}><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" /></svg>} />
     </nav>
   );

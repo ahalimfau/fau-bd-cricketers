@@ -4,7 +4,7 @@
 //  2. Setup: overs, toss, openers and the opening bowler.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { canScore } from '../config/roles';
 import { useApp } from '../data/hooks';
 import { createMatch, writeErrorText } from '../data/repo';
@@ -93,17 +93,7 @@ export function NewMatch() {
   }, [battingFirst, teams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!app.auth.ready || !app.playersReady) return <Page><Loading /></Page>;
-  if (!canScore(app.auth.role)) {
-    return (
-      <Page>
-        <Header title="New match" back="/" />
-        <div className={`${pad} flex flex-col gap-4 py-6`}>
-          <p>Only the scorer or admin login can create matches.</p>
-          <Link to="/login" className={btn.primary}>Sign in</Link>
-        </div>
-      </Page>
-    );
-  }
+  if (!canScore(app.auth.role)) return <Navigate to="/login?next=/new" replace />;
 
   const teamsOk = teamReady(teams.A) && teamReady(teams.B) && !namesClash(teams);
   const ready = teamsOk && !!battingFirst && !!striker && !!nonStriker && striker !== nonStriker && !!bowler;

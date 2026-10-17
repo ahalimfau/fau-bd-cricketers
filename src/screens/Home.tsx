@@ -93,7 +93,7 @@ export function Home() {
               <circle cx="12" cy="8" r="4" />
               <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
             </svg>
-            {role === 'admin' ? 'Admin' : role === 'scorer' ? 'Scorer' : 'Sign in'}
+            {role === 'admin' ? 'Admin' : role === 'scorer' ? 'Scorer' : 'Login'}
           </Link>
         </div>
       </header>
@@ -105,24 +105,16 @@ export function Home() {
           <LiveCard key={m.id} m={m} canScoreIt={canScore(role)} />
         ))}
 
-        {canScore(role) ? (
-          <Link
-            to="/new"
-            className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-green bg-surface text-[17px] font-extrabold text-green-dark"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            New match
-          </Link>
-        ) : (
-          ready &&
-          live.length === 0 && (
-            <div className="rounded-2xl bg-surface p-4 text-sm text-muted">
-              No match is live right now. Scorers: <Link to="/login" className="font-bold text-green-dark underline">sign in</Link> to start one.
-            </div>
-          )
-        )}
+        <Link
+          to={canScore(role) ? '/new' : '/login?next=/new'}
+          className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-green bg-surface text-[17px] font-extrabold text-green-dark"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          New match
+        </Link>
+        {ready && live.length === 0 && !canScore(role) && <p className="-mt-2 text-center text-[13px] text-muted">No match is live right now. Creating one asks for the scorer login.</p>}
 
         {canManage(role) && app.playersReady && app.players.length === 0 && (
           <Link to="/players" className="rounded-2xl bg-green-tint p-4 text-sm font-semibold text-green-dark">

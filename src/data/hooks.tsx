@@ -7,6 +7,8 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut as fbSignOut } 
 import { auth, db } from '../firebase';
 import { roleOf, type Role } from '../config/roles';
 import { DEFAULT_AWARDS_CONFIG, type AwardsConfig } from '../engine/awards';
+import { replay } from '../engine/replay';
+import type { PlayedMatch } from '../engine/career';
 import {
   DEFAULT_OVERS,
   sanitizeConfig,
@@ -152,6 +154,19 @@ export function useMatches(max = 100): MatchList {
     );
   }, [max]);
   return state;
+}
+
+/** Finished matches, replayed and ready for stats (newest first). */
+export function usePlayedMatches(): { list: PlayedMatch[]; ready: boolean; error: string | null } {
+  const { matches, ready, error } = useMatches(300);
+  const list = useMemo(
+    () =>
+      matches
+        .filter((m) => m.status === 'done')
+        .map((m) => ({ id: m.id, meta: m.meta, state: replay(m.meta, m.clean.events), createdAt: m.createdAt })),
+    [matches],
+  );
+  return { list, ready, error };
 }
 
 export interface LiveMatch {

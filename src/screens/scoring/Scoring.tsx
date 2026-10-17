@@ -84,7 +84,7 @@ export function Scoring() {
       <Page>
         <div className={`${pad} flex flex-col gap-4 py-10`}>
           <p className="text-lg font-bold">Sign in with the scorer login to score this match.</p>
-          <Link to="/login" className={btn.primary}>Sign in</Link>
+          <Link to={`/login?next=/score/${id ?? ''}`} className={btn.primary}>Sign in</Link>
           {id && <Link to={`/match/${id}`} className={btn.outline}>Just watch</Link>}
         </div>
       </Page>

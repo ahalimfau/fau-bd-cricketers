@@ -16,6 +16,7 @@ const Awards = lazy(() => import('./screens/Awards').then((m) => ({ default: m.A
 const Matches = lazy(() => import('./screens/Matches').then((m) => ({ default: m.Matches })));
 const Players = lazy(() => import('./screens/Players').then((m) => ({ default: m.Players })));
 const PlayerProfile = lazy(() => import('./screens/Players').then((m) => ({ default: m.PlayerProfile })));
+const Stats = lazy(() => import('./screens/Stats').then((m) => ({ default: m.Stats })));
 const Settings = lazy(() => import('./screens/Settings').then((m) => ({ default: m.Settings })));
 const SetupCheck = lazy(() => import('./SetupCheck').then((m) => ({ default: m.SetupCheck })));
 
@@ -53,6 +54,7 @@ export function App() {
             <Route path="/players" element={<Players />} />
             <Route path="/players/:id" element={<PlayerProfile />} />
             <Route path="/shame" element={<Awards />} />
+            <Route path="/stats" element={<Stats />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/check" element={<SetupCheck />} />
             <Route path="*" element={<NotFound />} />

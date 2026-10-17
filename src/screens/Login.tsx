@@ -1,11 +1,15 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { signIn, signInErrorText, signOut, useApp } from '../data/hooks';
 import { BackButton, Banner, Page, btn, pad } from '../ui/kit';
 
 export function Login() {
   const app = useApp();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  // Only internal app paths, e.g. /new or /score/abc123.
+  const nextRaw = params.get('next') ?? '/';
+  const next = /^\/[A-Za-z0-9/_-]*$/.test(nextRaw) && !nextRaw.startsWith('//') ? nextRaw : '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
@@ -18,7 +22,7 @@ export function Login() {
     setError(null);
     try {
       await signIn(email, password);
-      navigate('/', { replace: true });
+      navigate(next, { replace: true });
     } catch (err) {
       setError(signInErrorText(err));
     } finally {
@@ -35,8 +39,8 @@ export function Login() {
       </div>
       <div className={`${pad} flex flex-1 flex-col gap-6 pt-6 pb-8`}>
         <div className="flex flex-col gap-2">
-          <h1 className="font-display text-[clamp(26px,8vw,32px)] leading-tight font-extrabold">Sign in to score</h1>
-          <p className="text-muted">Use the group's shared scorer login to create and score matches. Watching live doesn't need a login.</p>
+          <h1 className="font-display text-[clamp(26px,8vw,32px)] leading-tight font-extrabold">{next === '/new' ? 'Sign in to create a match' : 'Scorer & admin login'}</h1>
+          <p className="text-muted">Use the group's shared scorer login to create and score matches. Everyone can watch live scores, scorecards, player stats, season stats and the Hall of Shame without logging in.</p>
         </div>
 
         {app.auth.uid ? (
