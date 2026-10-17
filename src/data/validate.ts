@@ -101,7 +101,16 @@ export function sanitizeMeta(raw: unknown): MatchMeta | null {
   if (!teamA || !teamB) return null;
   // A player can't be on both sides.
   if (teamA.playerIds.some((id) => teamB.playerIds.includes(id))) return null;
-  return { oversPerInnings: raw.oversPerInnings, battingFirst: raw.battingFirst, teamA, teamB };
+  const meta: MatchMeta = { oversPerInnings: raw.oversPerInnings, battingFirst: raw.battingFirst, teamA, teamB };
+  const toss = raw.toss;
+  if (
+    isObj(toss) &&
+    (toss.winner === 'A' || toss.winner === 'B') &&
+    (toss.choice === 'bat' || toss.choice === 'bowl')
+  ) {
+    meta.toss = { winner: toss.winner, choice: toss.choice };
+  }
+  return meta;
 }
 
 // ---------- Events ----------
@@ -255,4 +264,54 @@ export function sanitizeConfig(raw: unknown): AwardsConfig {
     if (intIn(raw[k], 0, 300)) cfg[k] = raw[k];
   }
   return cfg;
+}
+
+export const DEFAULT_OVERS = 12;
+
+export function sanitizeDefaultOvers(raw: unknown): number {
+  return isObj(raw) && intIn(raw.defaultOvers, 1, 50) ? raw.defaultOvers : DEFAULT_OVERS;
+}
+
+// ---------- Match document ----------
+
+export type MatchStatus = 'live' | 'done';
+
+export interface MatchDoc {
+  id: string;
+  meta: MatchMeta;
+  status: MatchStatus;
+  /** The stored list exactly as read (needed to write edits back in place). */
+  raw: unknown[];
+  clean: CleanEvents;
+  version: number;
+  createdBy: string;
+  /** Milliseconds since 1970; 0 if unknown. */
+  createdAt: number;
+}
+
+function millis(v: unknown): number {
+  if (isObj(v) && typeof (v as { toMillis?: unknown }).toMillis === 'function') {
+    const n = (v as { toMillis: () => number }).toMillis();
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+export function sanitizeMatch(id: unknown, raw: unknown): MatchDoc | null {
+  if (!isId(id) || !isObj(raw)) return null;
+  const meta = sanitizeMeta(raw.meta);
+  if (!meta) return null;
+  if (raw.status !== 'live' && raw.status !== 'done') return null;
+  if (!intIn(raw.version, 1, Number.MAX_SAFE_INTEGER)) return null;
+  const list = Array.isArray(raw.events) ? raw.events : [];
+  return {
+    id,
+    meta,
+    status: raw.status,
+    raw: list,
+    clean: sanitizeEvents(list, meta),
+    version: raw.version,
+    createdBy: typeof raw.createdBy === 'string' ? raw.createdBy : '',
+    createdAt: millis(raw.createdAt),
+  };
 }

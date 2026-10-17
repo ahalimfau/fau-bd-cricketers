@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { collection, deleteDoc, doc, getDocs, limit, query, setDoc } from 'firebase/firestore';
-import { db, isFirebaseConfigured } from './firebase';
+import { auth, db, isFirebaseConfigured } from './firebase';
 import { ADMIN_UID, SCORER_UID } from './config/roles';
 
-// Temporary home page until the real screens are built. It confirms the
-// Firebase setup from SETUP.md is complete and that the security rules are
-// live: a logged-out write MUST be refused by the server.
+// Setup and security check (#/check). Confirms the Firebase setup from
+// SETUP.md is complete and that the security rules are live: a logged-out
+// write MUST be refused by the server.
 
 type Status = 'wait' | 'ok' | 'fail';
 interface Check {
@@ -45,14 +45,20 @@ export function SetupCheck() {
       .then(() => set(2, 'ok', 'Public read works (needed for live viewing).'))
       .catch((e: { code?: string }) => set(2, 'fail', `Couldn't read the database (${e.code ?? 'error'}). Are the rules published?`));
 
+    // The probe only proves something when nobody is signed in on this phone.
     const probe = doc(store, 'players', 'security-probe');
-    setDoc(probe, { name: 'probe', active: false })
+    (auth ? auth.authStateReady() : Promise.resolve())
+      .then(() => {
+        if (auth?.currentUser) throw Object.assign(new Error('signed in'), { code: 'signed-in' });
+        return setDoc(probe, { name: 'probe', active: false });
+      })
       .then(async () => {
         set(3, 'fail', 'DANGER: a logged-out visitor could write. Publish firestore.rules now (SETUP.md step 7).');
         await deleteDoc(probe).catch(() => undefined);
       })
       .catch((e: { code?: string }) => {
-        if (e.code === 'permission-denied') set(3, 'ok', 'A logged-out write was refused by the server.');
+        if (e.code === 'signed-in') set(3, 'wait', 'Sign out first (or open this page in a private window) to run this check.');
+        else if (e.code === 'permission-denied') set(3, 'ok', 'A logged-out write was refused by the server.');
         else set(3, 'fail', `Unexpected result (${e.code ?? 'error'}).`);
       });
   }, []);
@@ -64,7 +70,7 @@ export function SetupCheck() {
       <h1 className="font-display text-[clamp(26px,8vw,32px)] leading-tight font-extrabold">
         <span className="text-green">FAU BD</span> Cricketers
       </h1>
-      <p className="text-muted">Setup check. The scoring screens arrive once this page is all green.</p>
+      <p className="text-muted">Setup and security check.</p>
       <ul className="flex flex-col gap-3">
         {checks.map((c) => (
           <li
@@ -82,6 +88,11 @@ export function SetupCheck() {
         ))}
       </ul>
       {allOk && <p className="font-bold text-green-dark">Everything is set up and locked down.</p>}
+      {isFirebaseConfigured && (
+        <a href="#/" className="font-bold text-green-dark underline">
+          Back to the app
+        </a>
+      )}
     </main>
   );
 }

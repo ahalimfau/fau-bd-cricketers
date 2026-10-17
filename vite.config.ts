@@ -13,7 +13,7 @@ const base = '/fau-bd-cricketers/';
 //  - images from this site and data:/blob: URLs (player photos, share images)
 //  - network calls to the three Google endpoints Firestore and Auth use
 // Everything else (third-party scripts, iframes, plugins, form posts to other
-// sites, <base> hijacking) is blocked. Added at build time only, because the
+// sites, pointing <base> at another site) is blocked. Added at build time only, because the
 // dev server needs inline scripts for hot reload.
 const CSP = [
   "default-src 'none'",
@@ -26,7 +26,9 @@ const CSP = [
   "worker-src 'self'",
   "frame-src 'none'",
   "object-src 'none'",
-  "base-uri 'none'",
+  // 'self' (not 'none'): the share-as-picture feature resolves the app's own
+  // font files against a same-site <base>. Other sites still can't be used.
+  "base-uri 'self'",
   "form-action 'none'",
   'upgrade-insecure-requests',
 ].join('; ');

@@ -228,6 +228,39 @@ This stops other websites from using your Firebase key.
 
 ---
 
+## Part 12: First use (10 min)
+
+1. Open `https://ahalimfau.github.io/fau-bd-cricketers/` and tap **Sign in**
+   (top right). Sign in with the **admin** login.
+2. **Players → + Add**: add every player with a name and, if you like, a
+   photo. Tap a player later to rename them, change the photo, or hide them
+   from the team picker (for someone who left).
+3. **Settings** (gear icon on Home): rename or switch off any title, set the
+   default overs and the Shahin weights, then **Save settings**.
+4. Share the **scorer** login in your private group chat. Scorers sign in the
+   same way and see **New match** on Home.
+5. Put the app on each phone's home screen:
+   - **iPhone (Safari):** Share button → **Add to Home Screen**.
+   - **Android (Chrome):** ⋮ menu → **Install app** (or **Add to Home screen**).
+
+### Scoring in 30 seconds
+- **New match** → tap players to put them in team A or B (or **Random split**
+  / **Captains pick**) → **Next** → overs, toss, openers, bowler → **Start match**.
+- One tap per ball: **0 1 2 3 4 6**. **WD / NB / BYE / LB** open a small sheet.
+  **OUT** asks how, who caught it, and who comes in next.
+- **UNDO** removes the last entry, as many times as you like. To fix an older
+  ball, tap it in "This over", or use **⋯ → Fix any entry**.
+- After a 4 or 6, tap **Leaked?** on the bar to blame a fielder. **Fielding
+  oops** logs dropped catches and misfields at any time.
+- Tap a batter's name to swap strike. **⋯** also has mid-over bowler change,
+  retire a batter, and end the innings early.
+- When the match ends, tap **Finish match**. That locks it and hands out the
+  titles. Only the admin can reopen or delete a finished match (on its match page).
+- Anyone can watch live from the link, without signing in, and share the score,
+  scorecard or Hall of Shame as a picture.
+
+---
+
 ## Using it safely, week to week
 
 - **Share the scorer login** only in your private group chat. Never share the
@@ -261,6 +294,18 @@ This stops other websites from using your Firebase key.
 | A hijacked GitHub Action | Every action is pinned to an exact commit, and the workflow runs with the least permissions. |
 | Someone pushes bad code to your repo | 2FA on GitHub, no collaborators, branch ruleset, approval required for outside pull requests. |
 | A surprise bill | The Spark plan can't bill you. |
+
+### Testing the security rules (for developers)
+`src/data/rules.emulator.test.ts` checks `firestore.rules` against the
+official Firebase emulator, using the exact documents the app writes. It
+needs Java 21 and `firebase-tools`, so it is skipped in the normal test run:
+
+```
+firebase emulators:start --only firestore,auth --project demo-fau-bd
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npx vitest run src/data/rules.emulator.test.ts
+```
+
+`VITE_EMULATOR=1 npm run dev` runs the whole app against the same emulators.
 
 **What no app can promise:** if someone gets your **admin password**, or your
 Google or GitHub account, they get what you have. That's why Part 1 matters

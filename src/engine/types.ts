@@ -116,11 +116,17 @@ export interface TeamMeta {
   playerIds: PlayerId[];
 }
 
+export interface Toss {
+  winner: TeamKey;
+  choice: 'bat' | 'bowl';
+}
+
 export interface MatchMeta {
   oversPerInnings: number;
   teamA: TeamMeta;
   teamB: TeamMeta;
   battingFirst: TeamKey;
+  toss?: Toss;
 }
 
 // ---------- Derived state ----------
