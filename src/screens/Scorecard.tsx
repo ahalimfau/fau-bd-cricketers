@@ -30,6 +30,8 @@ export function Scorecard() {
   const shown = tab ?? (state.current - 1);
   const inn = state.innings[shown];
   const bowlTeam = teamOf(meta, inn.bowlingTeam);
+  // The captain is stored as the first player of each team.
+  const batCaptain = teamOf(meta, inn.battingTeam).playerIds[0];
   const didNotBat = teamOf(meta, inn.battingTeam).playerIds.filter((pid) => !inn.batters.some((b) => b.id === pid));
   const fielders = bowlTeam.playerIds
     .map((pid) => state.fielding[pid])
@@ -70,6 +72,7 @@ export function Scorecard() {
               <span className="flex min-w-0 flex-col">
                 <span className={`truncate ${b.out ? 'font-semibold' : 'font-extrabold'}`}>
                   {app.name(b.id)}
+                  {b.id === batCaptain ? ' (c)' : ''}
                   {!b.out && !b.retired && (b.id === inn.strikerId || b.id === inn.nonStrikerId) && !inn.complete ? '*' : ''}
                 </span>
                 <span className="truncate text-xs text-muted">{dismissalText(b, app.name)}</span>
@@ -116,7 +119,10 @@ export function Scorecard() {
           </div>
           {inn.bowlers.filter((b) => b.balls > 0 || b.runs > 0).map((b) => (
             <div key={b.id} className="grid grid-cols-[minmax(0,1fr)_30px_22px_28px_22px_24px_24px_40px] items-center gap-1 border-b border-line py-2 text-sm">
-              <span className="truncate font-bold">{app.name(b.id)}</span>
+              <span className="truncate font-bold">
+                {app.name(b.id)}
+                {b.id === bowlTeam.playerIds[0] ? ' (c)' : ''}
+              </span>
               <span className="text-right">{`${Math.floor(b.balls / 6)}.${b.balls % 6}`}</span>
               <span className="text-right">{b.maidens}</span>
               <span className="text-right font-extrabold">{b.runs}</span>
